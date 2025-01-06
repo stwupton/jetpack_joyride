@@ -1,0 +1,1 @@
+odin build ./src -debug -out:./build/jetpack-joyride.exe -collection:jetpack_joyride=src/jetpack_joyride -collection:common=src/common

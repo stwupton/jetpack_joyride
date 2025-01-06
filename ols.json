@@ -1,0 +1,16 @@
+{
+    "$schema": "https://raw.githubusercontent.com/DanielGavin/ols/master/misc/ols.schema.json",
+    "collections": [
+        { 
+            "name": "jetpack_joyride", 
+            "path": "src/jetpack_joyride" 
+        },
+        { 
+            "name": "common", 
+            "path": "src/common" 
+        }
+    ],
+    "enable_document_symbols": true,
+    "enable_hover": true,
+    "enable_snippets": true
+}
