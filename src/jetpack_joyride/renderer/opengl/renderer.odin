@@ -5,6 +5,7 @@ import "core:strings"
 import "core:math/linalg"
 
 import gl "vendor:OpenGL"
+import stbi "vendor:stb/image"
 
 import "common:types"
 
@@ -15,7 +16,9 @@ import plat "jetpack_joyride:platform"
 Renderer :: struct {
 	generic_vertex_array: u32,
 	shape_shader: Shape_Shader_Program,
-	cached_window_size: types.Size(i32)
+	basic_shader: Basic_Shader_Program,
+	cached_window_size: types.Size(i32),
+	loaded_textures: [assets.Texture_ID]Texture_Details
 }
 
 Shape_Shader_Program :: struct {
@@ -27,6 +30,19 @@ Shape_Shader_Program :: struct {
 	}
 }
 
+Basic_Shader_Program :: struct {
+	id: u32,
+	uniform_location: struct {
+		view_projection: i32,
+		transform: i32
+	}
+}
+
+Texture_Details :: struct {
+	id: u32,
+	width, height: i32
+}
+
 init :: proc(renderer: ^Renderer, platform: plat.Platform) {
 	gl.Enable(gl.BLEND)
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
@@ -35,41 +51,29 @@ init :: proc(renderer: ^Renderer, platform: plat.Platform) {
 
 	init_vertex_array(renderer)
 	init_shape_shader(renderer, platform)
+	init_basic_shader(renderer, platform)
 	init_view_projection(renderer)
+	
+	load_all_textures(renderer, platform)
 }
 
 render :: proc "contextless" (using renderer: ^Renderer, window_size: types.Size(i32)) {
 	set_viewport(renderer, window_size)
 
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-	
-	// Backing
-	gl.UseProgram(shape_shader.id)
+
+	// Cloud
+	gl.UseProgram(basic_shader.id)
 	gl.BindVertexArray(generic_vertex_array)
-	background_colour: [4]f32 = { 1, 0, 1, 1 }
-	background_scale_transform := linalg.matrix4_scale(linalg.Vector3f32 { f32(properties.view_size.width), f32(properties.view_size.height), 0 })
-	background_transform := linalg.MATRIX4F32_IDENTITY * background_scale_transform
-
-	gl.Uniform4fv(shape_shader.uniform_location.colour, 1, &background_colour[0])
-	gl.UniformMatrix4fv(shape_shader.uniform_location.transform, 1, false, &background_transform[0][0])
-
-	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
-
-	// Square
-	gl.UseProgram(shape_shader.id)
-	gl.BindVertexArray(generic_vertex_array)
-	square_colour: [4]f32 = { 0, 0, 1, 1 }
-	square_scale_transform := linalg.matrix4_scale(linalg.Vector3f32 { 400, 400, 0 })
-	square_transform := linalg.MATRIX4F32_IDENTITY * square_scale_transform
-
-	gl.Uniform4fv(shape_shader.uniform_location.colour, 1, &square_colour[0])
-	gl.UniformMatrix4fv(shape_shader.uniform_location.transform, 1, false, &square_transform[0][0])
-
+	texture := loaded_textures[.cloud1]
+	gl.BindTexture(gl.TEXTURE_2D, texture.id)
+	scale_transform := linalg.MATRIX4F32_IDENTITY * linalg.matrix4_scale(linalg.Vector3f32 { f32(texture.width), f32(texture.height), 1 } * 4)
+	gl.UniformMatrix4fv(basic_shader.uniform_location.transform, 1, false, &scale_transform[0][0])
 	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
 }
 
 @private
-init_shader :: proc(platform: plat.Platform, shader: assets.Shader) -> (shader_id: u32) {
+init_shader :: proc(platform: plat.Platform, shader: assets.Shader_ID) -> (shader_id: u32) {
 	vertex_contents := assets.load_shader(platform, shader, .vertex)
 	vertex_contents_cstr := cstring(raw_data(vertex_contents))
 	vertex_shader := gl.CreateShader(gl.VERTEX_SHADER)
@@ -100,6 +104,13 @@ init_shape_shader :: proc(renderer: ^Renderer, platform: plat.Platform) {
 }
 
 @private 
+init_basic_shader :: proc(renderer: ^Renderer, platform: plat.Platform) {
+	renderer.basic_shader.id = init_shader(platform, .basic)
+	renderer.basic_shader.uniform_location.view_projection = gl.GetUniformLocation(renderer.basic_shader.id, "view_projection")
+	renderer.basic_shader.uniform_location.transform = gl.GetUniformLocation(renderer.basic_shader.id, "transform")
+}
+
+@private 
 init_view_projection :: proc "contextless" (using renderer: ^Renderer) {
 	left := -f32(properties.view_size.width) / 2
 	right := f32(properties.view_size.width) / 2
@@ -111,6 +122,9 @@ init_view_projection :: proc "contextless" (using renderer: ^Renderer) {
 
 	gl.UseProgram(shape_shader.id)
 	gl.UniformMatrix4fv(shape_shader.uniform_location.view_projection, 1, false, &projection[0][0])
+	
+	gl.UseProgram(basic_shader.id)
+	gl.UniformMatrix4fv(basic_shader.uniform_location.view_projection, 1, false, &projection[0][0])
 }
 
 @private 
@@ -139,6 +153,43 @@ init_vertex_array :: proc "contextless" (renderer: ^Renderer) {
 	gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 5 * size_of(f32), 0)
 	gl.EnableVertexAttribArray(1)
 	gl.VertexAttribPointer(1, 2, gl.FLOAT, false, 5 * size_of(f32), 3 * size_of(f32))
+}
+
+@private
+load_all_textures :: proc(renderer: ^Renderer, platform: plat.Platform) {
+	texture_ids := [assets.Texture_ID]u32 {}
+	gl.GenTextures(len(texture_ids), &texture_ids[assets.Texture_ID(0)])
+
+	for texture_id in assets.Texture_ID {
+		texture_data := assets.load_texture_data(platform, texture_id)
+		width, height, channels_in_file: i32
+		texture_bytes := stbi.load_from_memory(
+			raw_data(texture_data), 
+			i32(len(texture_data)), 
+			&width, 
+			&height, 
+			&channels_in_file, 
+			4
+		)
+		assert(texture_bytes != nil)
+
+		load_texture(texture_ids[texture_id], texture_bytes, width, height)
+		renderer.loaded_textures[texture_id] = {
+			id = texture_ids[texture_id],
+			width = width, 
+			height = height
+		}
+	}
+}
+
+@private
+load_texture :: proc(id: u32, bytes: [^]byte, width: i32, height: i32) {
+	gl.BindTexture(gl.TEXTURE_2D, id)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, bytes)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_BORDER)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_BORDER)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 }
 
 @private 

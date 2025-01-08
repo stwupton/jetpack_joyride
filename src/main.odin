@@ -34,6 +34,10 @@ main :: proc() {
 		os.exit(-1)
 	}
 
+	sdl2.GL_SetAttribute(.CONTEXT_PROFILE_MASK, 0)
+	sdl2.GL_SetAttribute(.CONTEXT_MAJOR_VERSION, 3)
+	sdl2.GL_SetAttribute(.CONTEXT_MINOR_VERSION, 3)
+
 	window: ^sdl2.Window = sdl2.CreateWindow(
 		"Jetpack Joyride", 
 		0, 0, display_mode.w, display_mode.h, 

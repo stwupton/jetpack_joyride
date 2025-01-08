@@ -1,6 +1,6 @@
 # Setup
 - [x] Render a basic rect
-- [ ] Render a texture
+- [x] Render a texture
 
 # Goal
 - [ ] Create a game world with a floor. The world will scroll from right to left endlessly.

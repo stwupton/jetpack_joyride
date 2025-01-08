@@ -8,15 +8,15 @@ import "vendor:sdl2"
 
 create_sdl2_platform :: proc() -> Platform {
 	return Platform {
-		read_file = read_file
+		read_asset_file = read_asset_file
 	}
 }
 
 @private 
-asset_path := string(sdl2.GetBasePath())
+asset_path := strings.concatenate({ string(sdl2.GetBasePath()), "/assets/" })
 
 @private
-read_file :: proc(path: string, allocator := context.allocator, location := #caller_location) -> string {
+read_asset_file :: proc(path: string, allocator := context.allocator, location := #caller_location) -> string {
 	file_path := strings.concatenate({ asset_path, path })
 	defer delete(file_path)
 
