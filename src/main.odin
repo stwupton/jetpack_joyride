@@ -11,6 +11,7 @@ import "vendor:sdl2"
 import "common:types"
 
 import gl_renderer "jetpack_joyride:renderer/opengl"
+import plat "jetpack_joyride:platform"
 
 main :: proc() {
 	when ODIN_DEBUG {
@@ -53,8 +54,10 @@ main :: proc() {
 
 	gl.load_up_to(3, 3, sdl2.gl_set_proc_address)
 
+	platform := plat.create_sdl2_platform()
+
 	renderer := new(gl_renderer.Renderer)	
-	gl_renderer.init(renderer)
+	gl_renderer.init(renderer, platform)
 	free_all(context.temp_allocator)
 
 	result = sdl2.GL_SetSwapInterval(-1)
@@ -74,6 +77,9 @@ main :: proc() {
 		for sdl2.PollEvent(&event) {
 			if event.type == .QUIT {
 				should_close = true
+			} else if event.type == .WINDOWEVENT && event.window.event == .SIZE_CHANGED {
+				window_size.width = event.window.data1;
+				window_size.height = event.window.data2;
 			}
 		}
 

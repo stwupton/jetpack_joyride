@@ -1,16 +1,16 @@
-package renderer
+package opengl_renderer
 
 import "core:fmt"
 import "core:strings"
 import "core:math/linalg"
 
 import gl "vendor:OpenGL"
-import "vendor:sdl2"
 
 import "common:types"
 
 import "jetpack_joyride:assets"
 import "jetpack_joyride:properties"
+import plat "jetpack_joyride:platform"
 
 Renderer :: struct {
 	generic_vertex_array: u32,
@@ -27,44 +27,56 @@ Shape_Shader_Program :: struct {
 	}
 }
 
-init :: proc(renderer: ^Renderer) {
+init :: proc(renderer: ^Renderer, platform: plat.Platform) {
 	gl.Enable(gl.BLEND)
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 	
 	gl.ClearColor(0, 0, 0, 1)
 
 	init_vertex_array(renderer)
-	init_shape_shader(renderer)
+	init_shape_shader(renderer, platform)
 	init_view_projection(renderer)
 }
 
-render :: proc(using renderer: ^Renderer, window_size: types.Size(i32)) {
+render :: proc "contextless" (using renderer: ^Renderer, window_size: types.Size(i32)) {
 	set_viewport(renderer, window_size)
 
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-
+	
+	// Backing
 	gl.UseProgram(shape_shader.id)
 	gl.BindVertexArray(generic_vertex_array)
-	colour: [4]f32 = { 0, 0, 1, 1 }
-	transform := linalg.MATRIX4F32_IDENTITY
-	scale_transform := linalg.matrix4_scale(linalg.Vector3f32 { 400, 400, 0 })
-	transform *= scale_transform
+	background_colour: [4]f32 = { 1, 0, 1, 1 }
+	background_scale_transform := linalg.matrix4_scale(linalg.Vector3f32 { f32(properties.view_size.width), f32(properties.view_size.height), 0 })
+	background_transform := linalg.MATRIX4F32_IDENTITY * background_scale_transform
 
-	gl.Uniform4fv(shape_shader.uniform_location.colour, 1, &colour[0])
-	gl.UniformMatrix4fv(shape_shader.uniform_location.transform, 1, false, &transform[0][0])
+	gl.Uniform4fv(shape_shader.uniform_location.colour, 1, &background_colour[0])
+	gl.UniformMatrix4fv(shape_shader.uniform_location.transform, 1, false, &background_transform[0][0])
+
+	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
+
+	// Square
+	gl.UseProgram(shape_shader.id)
+	gl.BindVertexArray(generic_vertex_array)
+	square_colour: [4]f32 = { 0, 0, 1, 1 }
+	square_scale_transform := linalg.matrix4_scale(linalg.Vector3f32 { 400, 400, 0 })
+	square_transform := linalg.MATRIX4F32_IDENTITY * square_scale_transform
+
+	gl.Uniform4fv(shape_shader.uniform_location.colour, 1, &square_colour[0])
+	gl.UniformMatrix4fv(shape_shader.uniform_location.transform, 1, false, &square_transform[0][0])
 
 	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
 }
 
 @private
-init_shader :: proc(shader: assets.Shader) -> (shader_id: u32) {
-	vertex_contents := assets.load_shader(shader, assets.Shader_Type.vertex)
+init_shader :: proc(platform: plat.Platform, shader: assets.Shader) -> (shader_id: u32) {
+	vertex_contents := assets.load_shader(platform, shader, .vertex)
 	vertex_contents_cstr := cstring(raw_data(vertex_contents))
 	vertex_shader := gl.CreateShader(gl.VERTEX_SHADER)
 	gl.ShaderSource(vertex_shader, 1, &vertex_contents_cstr, nil)
 	gl.CompileShader(vertex_shader);
 
-	fragment_contents := assets.load_shader(shader, assets.Shader_Type.fragment)
+	fragment_contents := assets.load_shader(platform, shader, .fragment)
 	fragment_contents_cstr := cstring(raw_data(fragment_contents))
 	fragment_shader := gl.CreateShader(gl.FRAGMENT_SHADER)
 	gl.ShaderSource(fragment_shader, 1, &fragment_contents_cstr, nil)
@@ -80,15 +92,15 @@ init_shader :: proc(shader: assets.Shader) -> (shader_id: u32) {
 }
 
 @private 
-init_shape_shader :: proc(using renderer: ^Renderer) {
-	shape_shader.id = init_shader(.shape)
-	shape_shader.uniform_location.view_projection = gl.GetUniformLocation(shape_shader.id, "view_projection")
-	shape_shader.uniform_location.transform = gl.GetUniformLocation(shape_shader.id, "transform")
-	shape_shader.uniform_location.colour = gl.GetUniformLocation(shape_shader.id, "colour")
+init_shape_shader :: proc(renderer: ^Renderer, platform: plat.Platform) {
+	renderer.shape_shader.id = init_shader(platform, .shape)
+	renderer.shape_shader.uniform_location.view_projection = gl.GetUniformLocation(renderer.shape_shader.id, "view_projection")
+	renderer.shape_shader.uniform_location.transform = gl.GetUniformLocation(renderer.shape_shader.id, "transform")
+	renderer.shape_shader.uniform_location.colour = gl.GetUniformLocation(renderer.shape_shader.id, "colour")
 }
 
 @private 
-init_view_projection :: proc(using renderer: ^Renderer) {
+init_view_projection :: proc "contextless" (using renderer: ^Renderer) {
 	left := -f32(properties.view_size.width) / 2
 	right := f32(properties.view_size.width) / 2
 	bottom := -f32(properties.view_size.height) / 2
@@ -102,7 +114,7 @@ init_view_projection :: proc(using renderer: ^Renderer) {
 }
 
 @private 
-init_vertex_array :: proc(renderer: ^Renderer) {
+init_vertex_array :: proc "contextless" (renderer: ^Renderer) {
 	// Create generic vertex array object
 	gl.GenVertexArrays(1, &renderer.generic_vertex_array)
 	gl.BindVertexArray(renderer.generic_vertex_array)
@@ -130,20 +142,17 @@ init_vertex_array :: proc(renderer: ^Renderer) {
 }
 
 @private 
-set_viewport :: proc(using renderer: ^Renderer, window_size: types.Size(i32)) {
-	if window_size == cached_window_size {
-		return 
-	} else {
-		cached_window_size = window_size
-	}
+set_viewport :: proc "contextless" (using renderer: ^Renderer, window_size: types.Size(i32)) {
+	if window_size == cached_window_size do return
+	cached_window_size = window_size
 
 	window_aspect_ratio := f32(window_size.width) / f32(window_size.height)
 	view_aspect_ratio := f32(properties.view_size.width) / f32(properties.view_size.height)
 
 	viewport_size: types.Size(i32)
 
-	snape_to_height: bool = window_aspect_ratio > view_aspect_ratio
-	if snape_to_height {
+	snap_to_height: bool = window_aspect_ratio > view_aspect_ratio
+	if snap_to_height {
 		viewport_size.height = window_size.height
 		viewport_size.width = i32(f32(viewport_size.height) * view_aspect_ratio)
 	} else {

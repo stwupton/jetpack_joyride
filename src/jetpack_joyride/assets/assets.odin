@@ -5,7 +5,7 @@ import "core:fmt"
 import "core:mem"
 import "core:strings"
 
-import "vendor:sdl2"
+import plat "jetpack_joyride:platform"
 
 Shader :: enum {
 	shape,
@@ -17,28 +17,20 @@ Shader_Type :: enum u8 {
 	fragment
 }
 
-load_shader :: proc(shader: Shader, type: Shader_Type) -> string {
+load_shader :: proc(platform: plat.Platform, shader: Shader, type: Shader_Type) -> string {
 	extension := "vert" if type == .vertex else "frag"
-	shader_name := shader_files[shader]
+	shader_name := shader_files[shader]	
+
+	shader_path := strings.concatenate({ "/assets/shaders/", shader_name, ".", extension })
+	defer delete(shader_path)
 	
-	asset_path := strings.concatenate({ base_path, "/assets/shaders/" }, context.temp_allocator)
-	shader_path := strings.concatenate({ asset_path, shader_name, ".", extension }, context.temp_allocator)
+	contents := platform.read_file(shader_path, context.temp_allocator)
 	
-	file: ^sdl2.RWops = sdl2.RWFromFile(cstring(raw_data(shader_path)), "r")
-	defer sdl2.RWclose(file)
-	
-	file_size := sdl2.RWsize(file)
-	contents := make([]u8, file_size, context.temp_allocator)
-	sdl2.RWread(file, &contents[0], size_of(u8), c.size_t(file_size))
-	
-	return string(contents)
+	return contents
 }
 
-@private
-base_path := string(sdl2.GetBasePath())
-
 @private 
-shader_files := map[Shader]string {
+shader_files := [Shader]string {
 	.shape = "shape",
 	.base = "base",
 }
