@@ -2,11 +2,17 @@ package assets
 
 import "core:strings"
 
+import "common:types"
+
 import plat "jetpack_joyride:platform"
 
 Texture_ID :: enum u8 {
-	cloud1
+	none,
+	back_panel,
+	floor,
 }
+
+texture_sizes: [Texture_ID]types.Size(u32) = {}
 
 load_texture_data :: proc(platform: plat.Platform, texture: Texture_ID) -> []u8 {
 	texture_file := texture_files[texture]
@@ -19,5 +25,7 @@ load_texture_data :: proc(platform: plat.Platform, texture: Texture_ID) -> []u8 
 
 @private
 texture_files := [Texture_ID]string {
-	.cloud1 = "cloud1.png"
+	.none = "",
+	.back_panel = "back_panel.png",
+	.floor = "floor.png"
 }
