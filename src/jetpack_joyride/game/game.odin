@@ -8,6 +8,7 @@ import "core:fmt"
 
 import "common:types"
 import "common:pool"
+import "common:intersection"
 
 import "jetpack_joyride:assets"
 import "jetpack_joyride:properties"
@@ -17,7 +18,8 @@ update :: proc(state: ^State, input: ^Input, delta: f32) {
 	update_back_panels(&state.back_panels, state.camera, delta)
 	update_floors(&state.floors, state.camera, delta)
 	update_player(&state.player, &state.bullets, input^, delta)
-	update_bullets(&state.bullets, delta)
+	update_ground_enemies(&state.ground_enemies, &state.ground_enemy_spawn_cooldown, state.camera, delta)
+	update_bullets(&state.bullets, &state.ground_enemies, delta)
 	update_camera(&state.camera, state.player)
 }
 
@@ -63,6 +65,16 @@ populate_render_frame :: proc(
 			if !taken do continue
 			bullet := state.bullets.data[index]
 			shapes_overflowed = !small_array.push(&frame.shapes, make_shape_render_item(bullet, previous.data[index], camera, alpha))
+		}
+	}
+	
+	// Ground enemies
+	{
+		previous := previous_state.ground_enemies
+		for taken, index in state.ground_enemies.taken {
+			if !taken do continue
+			enemy := state.ground_enemies.data[index]
+			shapes_overflowed = !small_array.push(&frame.shapes, make_shape_render_item(enemy, previous.data[index], camera, alpha))
 		}
 	}
 
@@ -233,6 +245,21 @@ spawn_bullet :: proc(bullets: ^Bullets, position: linalg.Vector2f32) {
 }
 
 @private
+spawn_ground_enemy :: proc(enemies: ^Ground_Enemies, camera: Camera) {
+	enemy := pool.add(enemies)
+	enemy^ = make_shape(
+		type = .rectangle,
+		position = { 
+			camera.x + f32(properties.view_size.width / 2) + 200, 
+			properties.floor_y + properties.ground_enemy_size.height / 2 
+		},
+		size = properties.ground_enemy_size,
+		colour = hex_to_vector4f32(0x00ff00ff),
+		version = enemy.version + 1,
+	)
+}
+
+@private
 update_back_panels :: proc "contextless" (back_panels: ^Back_Panels, camera: Camera, delta: f32) {
 	count := len(back_panels^)
 	for &panel in back_panels {
@@ -245,13 +272,29 @@ update_back_panels :: proc "contextless" (back_panels: ^Back_Panels, camera: Cam
 }
 
 @private 
-update_bullets :: proc(bullets: ^Bullets, delta: f32) {
+update_bullets :: proc(bullets: ^Bullets, ground_enemies: ^Ground_Enemies, delta: f32) {
 	iterator := pool.make_pool_iterator(bullets)
 	for bullet, index in pool.iterate_pool(&iterator) {
 		bullet.position += bullet.direction * properties.bullet_speed * delta
 		
 		if bullet.position.y < properties.floor_y - 200 {
 			pool.remove(bullets, index)
+			continue
+		}
+
+		enemy_iterator := pool.make_pool_iterator(ground_enemies)
+		for enemy, enemy_index in pool.iterate_pool(&enemy_iterator) {
+			should_check := intersection.circle_circle(
+				bullet.position, 
+				bullet.size.width / 2, 
+				enemy.position, 
+				max(enemy.size.width, enemy.size.height) / 2
+			)
+
+			if should_check && intersection.circle_rect(bullet.position, bullet.size.width / 2, enemy.position, enemy.size) {
+				pool.remove(bullets, index)
+				pool.remove(ground_enemies, enemy_index)
+			}
 		}
 	}	
 }
@@ -269,6 +312,29 @@ update_floors :: proc "contextless" (floors: ^Floors, camera: Camera, delta: f32
 		if floor.position.x <= left_cutoff {
 			floor.position.x += f32(floor.size.width) * f32(count)
 			floor.version += 1
+		}
+	}
+}
+
+@private
+update_ground_enemies :: proc(enemies: ^Ground_Enemies, spawn_cooldown: ^f32, camera: Camera, delta: f32) {
+	spawn_cooldown^ += delta
+	if spawn_cooldown^ >= properties.ground_enemy_spawn_cooldown_duration {
+		should_spawn := rand.float32() <= properties.ground_enemy_spawn_chance
+		if should_spawn {
+			spawn_ground_enemy(enemies, camera)
+		}
+
+		spawn_cooldown^ -= properties.ground_enemy_spawn_cooldown_duration
+	}
+
+	iterator := pool.make_pool_iterator(enemies)
+	for enemy, index in pool.iterate_pool(&iterator) {
+		enemy.position.x -= properties.ground_enemy_move_speed * delta
+
+		remove_position := camera.x - f32(properties.view_size.width / 2) - 200.0
+		if enemy.position.x <= remove_position {
+			pool.remove(enemies, index)
 		}
 	}
 }

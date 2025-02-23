@@ -14,11 +14,13 @@ Layer :: enum u8 {
 	background,
 }
 
+Entity_Version :: u8
+
 Entity :: struct {
 	position: linalg.Vector2f32,
 	scale: linalg.Vector2f32,
 	rotation: f32,
-	version: u16,
+	version: Entity_Version,
 	layer: Layer,
 }
 
@@ -42,6 +44,7 @@ make_shape :: proc "contextless" (
 	rotation: f32 = 0,
 	layer: Layer = .main,
 	colour: linalg.Vector4f32 = { 1, 1, 1, 1 },
+	version: Entity_Version = 0
 ) -> Shape {
 	return {
 		position = position,
@@ -51,6 +54,7 @@ make_shape :: proc "contextless" (
 		type = type,
 		size = size,
 		colour = colour,
+		version = version,
 	}
 }
 
@@ -85,6 +89,7 @@ Player :: struct {
 }
 
 Bullets :: pool.Pool(Bullet, 256)
+Ground_Enemies :: pool.Pool(Shape, 32)
 
 State :: struct {
 	camera: Camera,
@@ -92,4 +97,6 @@ State :: struct {
 	floors: Floors,
 	player: Player,
 	bullets: Bullets,
+	ground_enemies: Ground_Enemies,
+	ground_enemy_spawn_cooldown: f32,
 }
