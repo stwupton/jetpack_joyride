@@ -15,11 +15,19 @@ import "jetpack_joyride:properties"
 import "jetpack_joyride:renderer"
 
 update :: proc(state: ^State, input: ^Input, delta: f32) {
+	state.time += delta
+
 	update_back_panels(&state.back_panels, state.camera, delta)
 	update_floors(&state.floors, state.camera, delta)
 	update_player(&state.player, &state.bullets, input^, delta)
-	update_ground_enemies(&state.ground_enemies, &state.ground_enemy_spawn_cooldown, state.camera, delta)
-	update_bullets(&state.bullets, &state.ground_enemies, delta)
+	update_ground_enemies(
+		&state.ground_enemies, 
+		&state.ground_enemy_spawn_cooldown, 
+		state.camera, 
+		state.time,
+		delta
+	)
+	update_bullets(&state.bullets, &state.ground_enemies, state.time, delta)
 	update_camera(&state.camera, state.player)
 }
 
@@ -46,7 +54,10 @@ populate_render_frame :: proc(
 	{
 		previous := previous_state.back_panels
 		for panel, index in state.back_panels {
-			shapes_overflowed = !small_array.push(&frame.shapes, make_shape_render_item(panel, previous[index], camera, alpha))
+			shapes_overflowed = !small_array.push(
+				&frame.shapes, 
+				make_shape_render_item(panel, previous[index], camera, alpha)
+			)
 		}
 	}
 	
@@ -54,7 +65,10 @@ populate_render_frame :: proc(
 	{
 		previous := previous_state.floors
 		for floor, index in state.floors {
-			shapes_overflowed = !small_array.push(&frame.shapes, make_shape_render_item(floor, previous[index], camera, alpha))
+			shapes_overflowed = !small_array.push(
+				&frame.shapes, 
+				make_shape_render_item(floor, previous[index], camera, alpha)
+			)
 		}
 	}
 
@@ -64,7 +78,10 @@ populate_render_frame :: proc(
 		for taken, index in state.bullets.taken {
 			if !taken do continue
 			bullet := state.bullets.data[index]
-			shapes_overflowed = !small_array.push(&frame.shapes, make_shape_render_item(bullet, previous.data[index], camera, alpha))
+			shapes_overflowed = !small_array.push(
+				&frame.shapes, 
+				make_shape_render_item(bullet, previous.data[index], camera, alpha)
+			)
 		}
 	}
 	
@@ -74,14 +91,20 @@ populate_render_frame :: proc(
 		for taken, index in state.ground_enemies.taken {
 			if !taken do continue
 			enemy := state.ground_enemies.data[index]
-			shapes_overflowed = !small_array.push(&frame.shapes, make_shape_render_item(enemy, previous.data[index], camera, alpha))
+			shapes_overflowed = !small_array.push(
+				&frame.shapes, 
+				make_shape_render_item(enemy, previous.data[index], camera, alpha)
+			)
 		}
 	}
 
 	// Player
 	{
 		previous := previous_state.player
-		shapes_overflowed = !small_array.push(&frame.shapes, make_shape_render_item(state.player, previous, camera, alpha))
+		shapes_overflowed = !small_array.push(
+			&frame.shapes, 
+			make_shape_render_item(state.player, previous, camera, alpha)
+		)
 	}
 
 	assert(!shapes_overflowed && !sprites_overflowed)
@@ -103,7 +126,7 @@ make_shape_render_item :: proc "contextless" (
 
 	return renderer.Shape_Render_Item {
 		transform = make_transform(current, previous, camera, alpha),
-		colour = current.colour,
+		color = current.color,
 		type = current.type,
 	}
 }
@@ -137,35 +160,35 @@ make_transform :: proc "contextless" (
 @private 
 init_back_panels :: proc "contextless" (back_panels: ^Back_Panels) {
 	panel_size :: 1080
-	colour :: linalg.Vector4f32 { 0.7, 0.7, 0.7, 1 }
+	color :: linalg.Vector4f32 { 0.7, 0.7, 0.7, 1 }
 	back_panels^ = {
 		make_shape(
 			type = .rectangle, 
 			size = { width = panel_size, height = panel_size }, 
 			position = { -panel_size, 0 }, 
 			layer = .background,
-			colour = colour,
+			color = color,
 		),
 		make_shape(
 			type = .rectangle, 
 			size = { width = panel_size, height = panel_size }, 
 			position = { 0, 0 }, 
 			layer = .background,
-			colour = colour * .9,
+			color = color * .9,
 		),
 		make_shape(
 			type = .rectangle, 
 			size = { width = panel_size, height = panel_size }, 
 			position = { panel_size, 0 }, 
 			layer = .background,
-			colour = colour * .8,
+			color = color * .8,
 		),
 		make_shape(
 			type = .rectangle, 
 			size = { width = panel_size, height = panel_size }, 
 			position = { panel_size * 2, 0 }, 
 			layer = .background,
-			colour = colour * .7,
+			color = color * .7,
 		),
 	}
 }
@@ -187,7 +210,7 @@ init_floors :: proc "contextless" (floors: ^Floors) {
 	}
 
 	y := properties.floor_y - f32(size.height) / 2
-	colour := hex_to_vector4f32(0xced38dff)
+	color := hex_to_vector4f32(0xced38dff)
 
 	floors^ = {
 		make_shape(
@@ -195,21 +218,21 @@ init_floors :: proc "contextless" (floors: ^Floors) {
 			size = size,
 			position = { 0, y }, 
 			layer = .foreground,
-			colour = colour,
+			color = color,
 		),
 		make_shape(
 			type = .rectangle, 
 			size = size,
 			position = { f32(size.width), y }, 
 			layer = .foreground,
-			colour = colour,
+			color = color,
 		),
 		make_shape(
 			type = .rectangle, 
 			size = size,
 			position = { f32(size.width * 2), y }, 
 			layer = .foreground,
-			colour = colour,
+			color = color,
 		),
 	}
 }
@@ -222,7 +245,7 @@ init_player :: proc "contextless" (player: ^Player) {
 		type = .rectangle,
 		size = { width = width, height = height },
 		position = { properties.player_x_position, properties.floor_y + height / 2 },
-		colour = { 1, 0, 0, 1 },
+		color = { 1, 0, 0, 1 },
 	)
 }
 
@@ -233,34 +256,43 @@ spawn_bullet :: proc(bullets: ^Bullets, position: linalg.Vector2f32) {
 	bullet.size = { width = 30, height = 30 }
 	bullet.scale = { 1, 1 }
 	bullet.position = position
-	bullet.colour = hex_to_vector4f32(0xd8c495ff)
+	bullet.color = hex_to_vector4f32(0xd8c495ff)
 	bullet.layer = .main
 	bullet.version += 1
 
 	// Give a random angle to the bullets direction
 	bullet.direction = { 0, -1 }
 	rotate_by: f32 = rand.float32_range(-properties.bullet_spread, properties.bullet_spread)
-	bullet.direction.x = bullet.direction.x * math.cos(rotate_by) - bullet.direction.y * math.sin(rotate_by)
-	bullet.direction.y = bullet.direction.x * math.sin(rotate_by) + bullet.direction.y * math.cos(rotate_by)
+	bullet.direction.x = 
+		bullet.direction.x * math.cos(rotate_by) - 
+		bullet.direction.y * math.sin(rotate_by)
+	bullet.direction.y = 
+		bullet.direction.x * math.sin(rotate_by) + 
+		bullet.direction.y * math.cos(rotate_by)
 }
 
 @private
 spawn_ground_enemy :: proc(enemies: ^Ground_Enemies, camera: Camera) {
 	enemy := pool.add(enemies)
-	enemy^ = make_shape(
+	enemy.shape = make_shape(
 		type = .rectangle,
 		position = { 
 			camera.x + f32(properties.view_size.width / 2) + 200, 
 			properties.floor_y + properties.ground_enemy_size.height / 2 
 		},
 		size = properties.ground_enemy_size,
-		colour = hex_to_vector4f32(0x00ff00ff),
+		color = hex_to_vector4f32(properties.ground_enemy_color),
 		version = enemy.version + 1,
 	)
+	enemy.health = properties.ground_enemy_health
 }
 
 @private
-update_back_panels :: proc "contextless" (back_panels: ^Back_Panels, camera: Camera, delta: f32) {
+update_back_panels :: proc "contextless" (
+	back_panels: ^Back_Panels, 
+	camera: Camera, 
+	delta: f32
+) {
 	count := len(back_panels^)
 	for &panel in back_panels {
 		left_cutoff: f32 = camera.x - f32(properties.view_size.width / 2) - f32(panel.size.width / 2)
@@ -272,7 +304,12 @@ update_back_panels :: proc "contextless" (back_panels: ^Back_Panels, camera: Cam
 }
 
 @private 
-update_bullets :: proc(bullets: ^Bullets, ground_enemies: ^Ground_Enemies, delta: f32) {
+update_bullets :: proc(
+	bullets: ^Bullets, 
+	ground_enemies: ^Ground_Enemies, 
+	timestamp: f32, 
+	delta: f32
+) {
 	iterator := pool.make_pool_iterator(bullets)
 	for bullet, index in pool.iterate_pool(&iterator) {
 		bullet.position += bullet.direction * properties.bullet_speed * delta
@@ -284,16 +321,18 @@ update_bullets :: proc(bullets: ^Bullets, ground_enemies: ^Ground_Enemies, delta
 
 		enemy_iterator := pool.make_pool_iterator(ground_enemies)
 		for enemy, enemy_index in pool.iterate_pool(&enemy_iterator) {
-			should_check := intersection.circle_circle(
+			intersects := intersection.circle_rect(
 				bullet.position, 
 				bullet.size.width / 2, 
 				enemy.position, 
-				max(enemy.size.width, enemy.size.height) / 2
+				enemy.size
 			)
 
-			if should_check && intersection.circle_rect(bullet.position, bullet.size.width / 2, enemy.position, enemy.size) {
+			if intersects {
+				enemy.damaged_timestamp = timestamp
+				enemy.health -= properties.bullet_damage
+
 				pool.remove(bullets, index)
-				pool.remove(ground_enemies, enemy_index)
 			}
 		}
 	}	
@@ -317,7 +356,13 @@ update_floors :: proc "contextless" (floors: ^Floors, camera: Camera, delta: f32
 }
 
 @private
-update_ground_enemies :: proc(enemies: ^Ground_Enemies, spawn_cooldown: ^f32, camera: Camera, delta: f32) {
+update_ground_enemies :: proc(
+	enemies: ^Ground_Enemies, 
+	spawn_cooldown: ^f32, 
+	camera: Camera, 
+	timestamp: f32,
+	delta: f32,
+) {
 	spawn_cooldown^ += delta
 	if spawn_cooldown^ >= properties.ground_enemy_spawn_cooldown_duration {
 		should_spawn := rand.float32() <= properties.ground_enemy_spawn_chance
@@ -335,24 +380,42 @@ update_ground_enemies :: proc(enemies: ^Ground_Enemies, spawn_cooldown: ^f32, ca
 		remove_position := camera.x - f32(properties.view_size.width / 2) - 200.0
 		if enemy.position.x <= remove_position {
 			pool.remove(enemies, index)
+			continue
+		}
+
+		if enemy.health != properties.ground_enemy_health {
+			damage_tween_duration :: 0.2
+			
+			time_since_damaged := timestamp - enemy.damaged_timestamp
+			progress := time_since_damaged / damage_tween_duration
+			from_color := hex_to_vector4f32(properties.ground_enemy_damaged_color)
+			to_color := hex_to_vector4f32(properties.ground_enemy_color)
+			enemy.color = linalg.lerp(from_color, to_color, progress)
+		}
+
+		if enemy.health <= 0 {
+			pool.remove(enemies, index)
+			continue
 		}
 	}
 }
 
 @private
-update_player :: proc (player: ^Player, bullets: ^Bullets, input: Input, delta: f32) {
+update_player :: proc(player: ^Player, bullets: ^Bullets, input: Input, delta: f32) {
 	player.position.x += properties.player_move_speed * delta
 
 	if input.primary_button_down {
-		player.y_velocity += properties.player_vertical_velocity * delta
-		spawn_bullet(bullets, { 
-			player.position.x, 
-			player.position.y - player.size.height / 2 
-		})
+		player.y_velocity += properties.player_vertical_acceleration * delta
+		for i in 0..<properties.bullet_spawn_rate {
+			spawn_bullet(bullets, { 
+				player.position.x, 
+				player.position.y - player.size.height / 2 
+			})
+		}
 	}
 
 	player.y_velocity -= properties.player_gravity * delta
-	player.position.y += player.y_velocity
+	player.position.y += player.y_velocity * delta
 
 	ground_level := properties.floor_y + player.size.height / 2
 	max_height := properties.player_max_height - player.size.height / 2

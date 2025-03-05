@@ -16,8 +16,15 @@ import "jetpack_joyride:properties"
 import renderer_common "jetpack_joyride:renderer"
 import gl_renderer "jetpack_joyride:renderer/opengl"
 
-Window_Info :: struct {
+Event_Buffer :: [64]sdl2.Event
+
+Window_State :: struct {
+	window: ^sdl2.Window,
 	size: types.Size(i32),
+	should_close: bool,
+
+	// TODO(steven): Shouldn't be here
+	debug_time_scale: f32,
 }
 
 main :: proc() {
@@ -62,8 +69,11 @@ main :: proc() {
 		os.exit(-1)
 	}
 
-	window_info := Window_Info {
+	window_state := Window_State {
+		window = window,
 		size = { width = display_mode.w, height = display_mode.h },
+		should_close = false,
+		debug_time_scale = 1.0,
 	}
 
 	gl_context := sdl2.GL_CreateContext(window)
@@ -101,67 +111,71 @@ main :: proc() {
 
 	render_frame := new(renderer_common.Frame)
 
-	debug_time_scale: f32 = 1
 	previous_time := sdl2.GetTicks()
 	time_accumulator: f32 = 0
 
-	should_close := false
-	for !should_close {
-		event: sdl2.Event
-		for sdl2.PollEvent(&event) {
-			if event.type == .QUIT {
-				should_close = true
-			} else if event.type == .WINDOWEVENT && event.window.event == .SIZE_CHANGED {
-				window_info.size.width = event.window.data1
-				window_info.size.height = event.window.data2
-			} else if event.type == .MOUSEBUTTONDOWN && event.button.button == 1 {
-				input.primary_button_down = true
-			} else if event.type == .MOUSEBUTTONUP && event.button.button == 1 {
-				input.primary_button_down = false
-			} else if event.type == .KEYDOWN {
-				#partial switch event.key.keysym.sym {
-					case .F11: {
-						fullscreen_flag :: u32(sdl2.WINDOW_FULLSCREEN_DESKTOP)
-						is_fullscreen :=
-							fullscreen_flag & sdl2.GetWindowFlags(window) == fullscreen_flag
-						if is_fullscreen {
-							sdl2.SetWindowFullscreen(window, {})
-						} else {
-							sdl2.SetWindowFullscreen(window, sdl2.WINDOW_FULLSCREEN_DESKTOP)
+	for !window_state.should_close {
+		current_time := sdl2.GetTicks()
+		time_accumulator += f32(current_time - previous_time) / 1000 * window_state.debug_time_scale
+		previous_time = current_time
+
+		// TODO(steven): Move event handling elsewhere. We probably want to split 
+		// window event handling so it's only processes once per frame and input
+		// handling to once per sim tick. Currently, it's all being done in the frame.
+		{
+			event: sdl2.Event
+			for sdl2.PollEvent(&event) {
+				if event.type == .QUIT {
+					window_state.should_close = true
+				} else if event.type == .WINDOWEVENT && event.window.event == .SIZE_CHANGED {
+					window_state.size.width = event.window.data1
+					window_state.size.height = event.window.data2
+				} else if event.type == .MOUSEBUTTONDOWN && event.button.button == 1 {
+					input.primary_button_down = true
+				} else if event.type == .MOUSEBUTTONUP && event.button.button == 1 {
+					input.primary_button_down = false
+				} else if event.type == .KEYDOWN {
+					#partial switch event.key.keysym.sym {
+						case .F11: {
+							fullscreen_flag :: u32(sdl2.WINDOW_FULLSCREEN_DESKTOP)
+							is_fullscreen :=
+								fullscreen_flag & sdl2.GetWindowFlags(window) == fullscreen_flag
+							if is_fullscreen {
+								sdl2.SetWindowFullscreen(window, {})
+							} else {
+								sdl2.SetWindowFullscreen(window, sdl2.WINDOW_FULLSCREEN_DESKTOP)
+							}
 						}
-					}
 
-					case .EQUALS: {
-						debug_time_scale += (1 if debug_time_scale >= 1 else 0.1)
-					}
+						case .EQUALS: {
+							window_state.debug_time_scale += 1 if window_state.debug_time_scale >= 1 else 0.1
+						}
 
-					case .MINUS: {
-						debug_time_scale = max(0, debug_time_scale - (1 if debug_time_scale > 1 else 0.1))
+						case .MINUS: {
+							window_state.debug_time_scale -= 1 if window_state.debug_time_scale > 1 else 0.1
+							window_state.debug_time_scale = max(0, window_state.debug_time_scale)
+						}
 					}
 				}
 			}
 		}
 
-		current_time := sdl2.GetTicks()
-		time_accumulator += f32(current_time - previous_time) * debug_time_scale
-		previous_time = current_time
-
-		for time_accumulator >= properties.sim_time_ms {
-			time_accumulator -= properties.sim_time_ms
-
+		for time_accumulator >= properties.sim_time_s {
+			time_accumulator -= properties.sim_time_s
+			
 			// Copy state before last simulation tick to use for rendering.
-			if time_accumulator < properties.sim_time_ms {
+			if time_accumulator < properties.sim_time_s {
 				previous_state^ = state^
 			}
 
 			game.update(state, input, properties.sim_time_s)
 		}
 
-		alpha := time_accumulator / properties.sim_time_ms
+		alpha := time_accumulator / properties.sim_time_s
 		renderer_common.clear_frame(render_frame)
 		game.populate_render_frame(render_frame, state^, previous_state^, alpha)
-
-		gl_renderer.render(renderer, render_frame^, window_info.size)
+		
+		gl_renderer.render(renderer, render_frame^, window_state.size)
 		sdl2.GL_SwapWindow(window)
 	}
 

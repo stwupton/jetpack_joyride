@@ -21,7 +21,7 @@ circle_rect :: proc "contextless" (
 	}
 
 	distance := closest - circle_position
-	return linalg.vector_length(distance) <= radius
+	return linalg.vector_length2(distance) <= radius * radius
 }
 
 circle_circle :: proc "contextless" (
@@ -30,6 +30,6 @@ circle_circle :: proc "contextless" (
 	circle1_position: [2]f32, 
 	circle1_radius: f32
 ) -> bool {
-	distance := linalg.distance(circle0_position, circle1_position)
-	return distance < circle0_radius + circle1_radius
+	distance := linalg.length2(circle0_position - circle1_position)
+	return distance < circle0_radius * circle0_radius + circle1_radius * circle1_radius
 }

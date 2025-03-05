@@ -33,7 +33,7 @@ Shape_Shader_Program :: struct {
 	uniform_location: struct {
 		view_projection: i32,
 		transform: i32,
-		colour: i32,
+		color: i32,
 		shape_type: i32,
 	}
 }
@@ -51,7 +51,7 @@ init :: proc(renderer: ^Renderer, platform: plat.Platform, layer_count: u8) {
 	gl.Enable(gl.BLEND)
 	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
-	// Enable depth testing with LEQUAL. This means that depth testing works but 
+	// Enable depth testing with LEQUAL. This means that depth testing works but when
 	// the Z positions are the same, the rendering order determines what appears on 
 	// top. So the last thing drawn will be visible. 
 	gl.Enable(gl.DEPTH_TEST)
@@ -113,7 +113,12 @@ render :: proc "contextless" (
 			cached_texture = image.texture
 		}
 
-		gl.UniformMatrix4fv(renderer.basic_shader.uniform_location.transform, 1, false, &image.transform[0][0])
+		gl.UniformMatrix4fv(
+			renderer.basic_shader.uniform_location.transform, 
+			1, 
+			false, 
+			&image.transform[0][0]
+		)
 		gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
 	}
 
@@ -121,9 +126,14 @@ render :: proc "contextless" (
 	gl.BindVertexArray(renderer.vertex_array)
 	for i in 0..<frame.shapes.len {
 		shape := frame.shapes.data[i]
-		gl.Uniform4fv(renderer.shape_shader.uniform_location.colour, 1, &shape.colour[0])
+		gl.Uniform4fv(renderer.shape_shader.uniform_location.color, 1, &shape.color[0])
 		gl.Uniform1i(renderer.shape_shader.uniform_location.shape_type, i32(shape.type))
-		gl.UniformMatrix4fv(renderer.shape_shader.uniform_location.transform, 1, false, &shape.transform[0][0])
+		gl.UniformMatrix4fv(
+			renderer.shape_shader.uniform_location.transform, 
+			1, 
+			false, 
+			&shape.transform[0][0]
+		)
 		gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
 	}
 }
@@ -157,7 +167,7 @@ create_shape_shader :: proc(platform: plat.Platform) -> Shape_Shader_Program {
 	shape_shader.id = create_shader(platform, .shape)
 	shape_shader.uniform_location.view_projection = gl.GetUniformLocation(shape_shader.id, "view_projection")
 	shape_shader.uniform_location.transform = gl.GetUniformLocation(shape_shader.id, "transform")
-	shape_shader.uniform_location.colour = gl.GetUniformLocation(shape_shader.id, "colour")
+	shape_shader.uniform_location.color = gl.GetUniformLocation(shape_shader.id, "color")
 	shape_shader.uniform_location.shape_type = gl.GetUniformLocation(shape_shader.id, "shape_type")
 	return shape_shader
 }

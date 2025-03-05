@@ -17,7 +17,7 @@ Shape_Type :: enum u8 {
 
 Shape_Render_Item :: struct {
 	transform: linalg.Matrix4f32,
-	colour: linalg.Vector4f32,
+	color: linalg.Vector4f32,
 	type: Shape_Type,
 }
 

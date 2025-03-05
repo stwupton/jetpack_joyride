@@ -26,7 +26,7 @@ Entity :: struct {
 
 Shape :: struct {
 	using entity: Entity,
-	colour: linalg.Vector4f32,
+	color: linalg.Vector4f32,
 	size: types.Size(f32),
 	type: renderer.Shape_Type,
 }
@@ -43,7 +43,7 @@ make_shape :: proc "contextless" (
 	scale: linalg.Vector2f32 = { 1, 1 },
 	rotation: f32 = 0,
 	layer: Layer = .main,
-	colour: linalg.Vector4f32 = { 1, 1, 1, 1 },
+	color: linalg.Vector4f32 = { 1, 1, 1, 1 },
 	version: Entity_Version = 0
 ) -> Shape {
 	return {
@@ -53,7 +53,7 @@ make_shape :: proc "contextless" (
 		layer = layer,
 		type = type,
 		size = size,
-		colour = colour,
+		color = color,
 		version = version,
 	}
 }
@@ -89,7 +89,14 @@ Player :: struct {
 }
 
 Bullets :: pool.Pool(Bullet, 256)
-Ground_Enemies :: pool.Pool(Shape, 32)
+
+Ground_Enemy :: struct {
+	using shape: Shape,
+	damaged_timestamp: f32,
+	health: f32,
+}
+
+Ground_Enemies :: pool.Pool(Ground_Enemy, 32)
 
 State :: struct {
 	camera: Camera,
@@ -98,5 +105,6 @@ State :: struct {
 	player: Player,
 	bullets: Bullets,
 	ground_enemies: Ground_Enemies,
+	time: f32,
 	ground_enemy_spawn_cooldown: f32,
 }
