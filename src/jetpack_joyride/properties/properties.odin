@@ -19,7 +19,7 @@ player_gravity :: 4000.0
 
 bullet_speed :: 1500.0
 bullet_spread :: .5
-bullet_spawn_rate :: 2
+bullet_spawn_rate :: 120
 bullet_damage :: 1.0
 
 camera_x_offset :: f32(view_size.width) * .2

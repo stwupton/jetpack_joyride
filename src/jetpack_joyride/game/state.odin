@@ -107,4 +107,5 @@ State :: struct {
 	ground_enemies: Ground_Enemies,
 	time: f32,
 	ground_enemy_spawn_cooldown: f32,
+	bullet_spawn_time: f32,
 }

@@ -1,5 +1,6 @@
 package game
 
 Input :: struct {
-	primary_button_down: bool,
+	is_primary_button_down: bool,
+	was_primary_button_down: bool,
 }

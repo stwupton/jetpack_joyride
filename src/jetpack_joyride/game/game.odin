@@ -19,7 +19,14 @@ update :: proc(state: ^State, input: ^Input, delta: f32) {
 
 	update_back_panels(&state.back_panels, state.camera, delta)
 	update_floors(&state.floors, state.camera, delta)
-	update_player(&state.player, &state.bullets, input^, delta)
+	update_player(
+		&state.player, 
+		&state.bullets, 
+		&state.bullet_spawn_time, 
+		input^, 
+		state.time, 
+		delta
+	)
 	update_ground_enemies(
 		&state.ground_enemies, 
 		&state.ground_enemy_spawn_cooldown, 
@@ -29,6 +36,8 @@ update :: proc(state: ^State, input: ^Input, delta: f32) {
 	)
 	update_bullets(&state.bullets, &state.ground_enemies, state.time, delta)
 	update_camera(&state.camera, state.player)
+
+	input.was_primary_button_down = input.is_primary_button_down
 }
 
 init :: proc "contextless" (state: ^State) {
@@ -401,12 +410,27 @@ update_ground_enemies :: proc(
 }
 
 @private
-update_player :: proc(player: ^Player, bullets: ^Bullets, input: Input, delta: f32) {
+update_player :: proc(
+	player: ^Player, 
+	bullets: ^Bullets, 
+	bullet_spawn_time: ^f32, 
+	input: Input, 
+	time: f32, 
+	delta: f32,
+) {
 	player.position.x += properties.player_move_speed * delta
 
-	if input.primary_button_down {
+	if input.is_primary_button_down {
 		player.y_velocity += properties.player_vertical_acceleration * delta
-		for i in 0..<properties.bullet_spawn_rate {
+
+		spawn_interval :: 1.0 / properties.bullet_spawn_rate
+
+		if !input.was_primary_button_down {
+			bullet_spawn_time^ = time - spawn_interval
+		}
+
+		for time - bullet_spawn_time^ >= spawn_interval {
+			bullet_spawn_time^ += spawn_interval
 			spawn_bullet(bullets, { 
 				player.position.x, 
 				player.position.y - player.size.height / 2 
