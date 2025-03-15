@@ -133,9 +133,14 @@ make_shape_render_item :: proc "contextless" (
 	current.scale *= types.size_to_vector2(current.size)
 	previous.scale *= types.size_to_vector2(previous.size)
 
+	color := current.color
+	if current.version == previous.version {
+		color = linalg.lerp(previous.color, current.color, alpha)
+	}
+
 	return renderer.Shape_Render_Item {
 		transform = make_transform(current, previous, camera, alpha),
-		color = current.color,
+		color = color,
 		type = current.type,
 	}
 }
