@@ -124,6 +124,11 @@ main :: proc() {
 		previous_time = current_time
 
 		handle_events(window_event_handler, event_buffer, &window_state, input)
+
+		// Handle events when this frame does not perform any simulations.
+		if time_accumulator < properties.sim_time_s {
+			handle_events(game_event_handler, event_buffer, &window_state, input)
+		}
 		
 		for time_accumulator >= properties.sim_time_s {
 			time_accumulator -= properties.sim_time_s
