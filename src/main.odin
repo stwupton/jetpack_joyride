@@ -140,6 +140,8 @@ main :: proc() {
 			
 			handle_events(game_event_handler, event_buffer, &window_state, input)
 			game.update(state, input, properties.sim_time_s)
+
+			free_all(context.temp_allocator)
 		}
 
 		sdl2.FlushEvents(.FIRSTEVENT, .LASTEVENT)
@@ -183,13 +185,16 @@ main :: proc() {
 // in the queue should be getting flushed.
 @private
 event_filter :: proc "c" (userdata: rawptr, event: ^sdl2.Event) -> c.int {
+	handle_event :: 1
+	dont_handle_event :: 0
+
 	#partial switch event.type {
 		case .QUIT: fallthrough
 		case .WINDOWEVENT: fallthrough
 		case .MOUSEBUTTONDOWN: fallthrough
 		case .MOUSEBUTTONUP: fallthrough
-		case .KEYDOWN: return 1
-		case: return 0
+		case .KEYDOWN: return handle_event
+		case: return dont_handle_event
 	}
 }
 

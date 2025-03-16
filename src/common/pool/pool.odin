@@ -6,6 +6,12 @@ Pool :: struct($T: typeid, $Size: int) {
 }
 
 add :: proc(pool: ^Pool($T, $Size)) -> ^T {
+	value, ok := add_safe(pool)
+	assert(ok)
+	return value
+}
+
+add_safe :: proc(pool: ^Pool($T, $Size)) -> (^T, bool) {
 	available_index: Maybe(int) = nil
 	for taken, index in pool.taken {
 		if !taken {
@@ -14,14 +20,11 @@ add :: proc(pool: ^Pool($T, $Size)) -> ^T {
 		}
 	}
 
-	assert(available_index != nil)
-
 	if available_index != nil {
 		pool.taken[available_index.(int)] = true
-		return &pool.data[available_index.(int)]
+		return &pool.data[available_index.(int)], true
 	} else {
-		pool.taken[Size - 1] = true
-		return &pool.data[Size - 1]
+		return nil, false
 	}
 }
 
@@ -31,6 +34,14 @@ remove :: proc(pool: ^Pool($T, $Size), index: int) {
 	if index < Size {
 		pool.taken[index] = false
 	}
+}
+
+available :: proc "contextless" (pool: Pool($T, $Size)) -> int {
+	count := 0
+	for i in 0..<Size {
+		if !pool.taken[i] do count += 1
+	}
+	return count
 }
 
 Pool_Iterator :: struct($T: typeid, $Size: int) {

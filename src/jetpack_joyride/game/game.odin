@@ -34,15 +34,17 @@ update :: proc(state: ^State, input: ^Input, delta: f32) {
 		state.time,
 		delta
 	)
+	update_obstacles(&state.obstacles, &state.obstacle_spawn_x, state.camera, state.time)
 	update_bullets(&state.bullets, &state.ground_enemies, state.time, delta)
 	update_camera(&state.camera, state.player)
 
 	input.was_primary_button_down = input.is_primary_button_down
 }
 
-init :: proc "contextless" (state: ^State) {
+init :: proc(state: ^State) {
 	init_back_panels(&state.back_panels)
 	init_floors(&state.floors)
+	init_obstacles(&state.obstacles, &state.obstacle_spawn_x, state.camera)
 	init_player(&state.player)
 }
 
@@ -93,6 +95,19 @@ populate_render_frame :: proc(
 			)
 		}
 	}
+
+	// Obstacles
+	{
+		previous := previous_state.obstacles
+		for taken, index in state.obstacles.taken {
+			if !taken do continue
+			obstacle := state.obstacles.data[index]
+			shapes_overflowed = !small_array.push(
+				&frame.shapes, 
+				make_shape_render_item(obstacle, previous.data[index], camera, alpha)
+			)
+		}
+	}
 	
 	// Ground enemies
 	{
@@ -117,6 +132,41 @@ populate_render_frame :: proc(
 	}
 
 	assert(!shapes_overflowed && !sprites_overflowed)
+}
+
+@private 
+make_obstacles :: proc(obstacles: ^Obstacles, count: int, x: f32) {
+	if count == 1 {
+		obstacle := pool.add(obstacles)
+		obstacle^ = make_shape(
+			type = .rectangle,
+			size = { width = properties.obstacle_size, height = properties.obstacle_size },
+			position = { x, 0.0 },
+			rotation = 180 * rand.float32(),
+			color = hex_to_vector4f32(properties.obstacle_color),
+			version = obstacle.version + 1
+		)
+	} else if count == 2 {
+		obstacle := pool.add(obstacles)
+		obstacle^ = make_shape(
+			type = .rectangle,
+			size = { width = properties.obstacle_size, height = properties.obstacle_size },
+			position = { x, f32(properties.view_size.height) / 4 },
+			color = hex_to_vector4f32(properties.obstacle_color),
+			version = obstacle.version + 1
+		)
+		
+		obstacle = pool.add(obstacles)
+		obstacle^ = make_shape(
+			type = .rectangle,
+			size = { width = properties.obstacle_size, height = properties.obstacle_size },
+			position = { x, -f32(properties.view_size.height) / 4 },
+			color = hex_to_vector4f32(properties.obstacle_color),
+			version = obstacle.version + 1
+		)
+	} else {
+		assert(false, fmt.tprintln("Cannot spawn ", count, " obstacles. Must be 1 or 2.", sep = ""))
+	}
 }
 
 @private
@@ -251,6 +301,27 @@ init_floors :: proc "contextless" (floors: ^Floors) {
 	}
 }
 
+@private 
+init_obstacles :: proc(obstacles: ^Obstacles, obstacle_spawn_x: ^f32, camera: Camera) {
+	camera_right := camera.x + f32(properties.view_size.width) / 2
+	obstacle_spawn_x^ = camera_right + properties.obstacle_x_spacing
+	obstacles_available := pool.available(obstacles^)
+
+	for i := 0; obstacles_available > 0; i += 1 {
+		for rand.float32() >= properties.obstacle_spawn_chance {
+			obstacle_spawn_x^ += properties.obstacle_x_spacing
+		}
+		
+		spawn_range := properties.obstacle_spawn_count_range
+		count := spawn_range[i % len(spawn_range)]
+		count = min(obstacles_available, count)
+		obstacles_available -= count
+
+		make_obstacles(obstacles, count, obstacle_spawn_x^)
+		obstacle_spawn_x^ += properties.obstacle_x_spacing
+	}
+}
+
 @private
 init_player :: proc "contextless" (player: ^Player) {
 	height :: f32(200)
@@ -287,7 +358,9 @@ spawn_bullet :: proc(bullets: ^Bullets, position: linalg.Vector2f32) {
 
 @private
 spawn_ground_enemy :: proc(enemies: ^Ground_Enemies, camera: Camera) {
-	enemy := pool.add(enemies)
+	enemy, ok := pool.add_safe(enemies)
+	if !ok do return 
+	
 	enemy.shape = make_shape(
 		type = .rectangle,
 		position = { 
@@ -411,6 +484,31 @@ update_ground_enemies :: proc(
 			pool.remove(enemies, index)
 			continue
 		}
+	}
+}
+
+@private
+update_obstacles :: proc(obstacles: ^Obstacles, obstacle_spawn_x: ^f32, camera: Camera, time: f32) {
+	obstacle_iterator := pool.make_pool_iterator(obstacles)
+	for obstacle, index in pool.iterate_pool(&obstacle_iterator) {
+		obstacle_right := obstacle.position.x + properties.obstacle_size / 2
+		camera_left := camera.x - f32(properties.view_size.width) / 2
+		if obstacle_right < camera_left {
+			pool.remove(obstacles, index)
+		}
+	}
+
+	obstacles_available := pool.available(obstacles^)
+	for obstacles_available > 0 {
+		for rand.float32() >= properties.obstacle_spawn_chance {
+			obstacle_spawn_x^ += properties.obstacle_x_spacing
+		}
+		
+		count := min(obstacles_available, 2)
+		obstacles_available -= count
+
+		make_obstacles(obstacles, count, obstacle_spawn_x^)
+		obstacle_spawn_x^ += properties.obstacle_x_spacing
 	}
 }
 

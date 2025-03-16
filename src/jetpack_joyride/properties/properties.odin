@@ -26,6 +26,12 @@ camera_x_offset :: f32(view_size.width) * .2
 
 floor_y :: -f32(view_size.height) * .8 / 2
 
+obstacle_x_spacing :: 500.0
+obstacle_spawn_chance :: f32(1) / 4
+obstacle_spawn_count_range :: []int{ 1, 1, 1, 2 }
+obstacle_size :: 200.0
+obstacle_color :: 0xffaabbff
+
 ground_enemy_spawn_cooldown_duration :: 1.0
 ground_enemy_size :: types.Size(f32) {
 	width = 50,

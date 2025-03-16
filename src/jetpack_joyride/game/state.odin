@@ -98,6 +98,8 @@ Ground_Enemy :: struct {
 
 Ground_Enemies :: pool.Pool(Ground_Enemy, 32)
 
+Obstacles :: pool.Pool(Shape, 16)
+
 State :: struct {
 	camera: Camera,
 	back_panels: Back_Panels,
@@ -105,6 +107,8 @@ State :: struct {
 	player: Player,
 	bullets: Bullets,
 	ground_enemies: Ground_Enemies,
+	obstacles: Obstacles,
+	obstacle_spawn_x: f32,
 	time: f32,
 	ground_enemy_spawn_cooldown: f32,
 	bullet_spawn_time: f32,
