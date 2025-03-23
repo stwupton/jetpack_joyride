@@ -4,9 +4,9 @@ import "core:math/linalg"
 
 import "common:types"
 import "common:pool"
+import "common:renderer"
 
 import "jetpack_joyride:assets"
-import "jetpack_joyride:renderer"
 
 Layer :: enum u8 {
 	foreground,

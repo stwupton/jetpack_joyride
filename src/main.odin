@@ -10,12 +10,14 @@ import gl "vendor:OpenGL"
 import "vendor:sdl2"
 
 import "common:types"
+import common_platform "common:platform"
+import sdl2_platform "common:platform/sdl2"
+import common_renderer "common:renderer"
+import gl_renderer "common:renderer/opengl"
 
+import "jetpack_joyride:assets"
 import "jetpack_joyride:game"
-import plat "jetpack_joyride:platform"
 import "jetpack_joyride:properties"
-import renderer_common "jetpack_joyride:renderer"
-import gl_renderer "jetpack_joyride:renderer/opengl"
 
 Event_Buffer :: [64]sdl2.Event
 
@@ -88,11 +90,23 @@ main :: proc() {
 
 	gl.load_up_to(3, 3, sdl2.gl_set_proc_address)
 
-	platform := plat.create_sdl2_platform()
+	platform := common_platform.Platform {}
+	sdl2_platform.make(&platform, "/assets/")
 
 	renderer := new(gl_renderer.Renderer)
-	gl_renderer.init(renderer, platform, len(game.Layer))
-	free_all(context.temp_allocator)
+	gl_renderer.init(renderer, properties.view_size, len(game.Layer))
+
+	vertex_contents := assets.load_shader(platform, .basic, .vertex)
+	fragment_contents := assets.load_shader(platform, .basic, .fragment)
+	gl_renderer.init_basic_shader(renderer, vertex_contents, fragment_contents)
+	delete(vertex_contents)
+	delete(fragment_contents)
+
+	vertex_contents = assets.load_shader(platform, .shape, .vertex)
+	fragment_contents = assets.load_shader(platform, .shape, .fragment)
+	gl_renderer.init_shape_shader(renderer, vertex_contents, fragment_contents)
+	delete(vertex_contents)
+	delete(fragment_contents)
 
 	result = sdl2.GL_SetSwapInterval(-1)
 	vsync_not_supported := result == -1
@@ -113,7 +127,9 @@ main :: proc() {
 
 	input := new(game.Input)
 
-	render_frame := new(renderer_common.Frame)
+	render_frame := new(common_renderer.Frame)
+
+	free_all(context.temp_allocator)
 
 	previous_time := sdl2.GetTicks()
 	time_accumulator: f32 = 0
@@ -147,7 +163,7 @@ main :: proc() {
 		sdl2.FlushEvents(.FIRSTEVENT, .LASTEVENT)
 
 		alpha := time_accumulator / properties.sim_time_s
-		renderer_common.clear_frame(render_frame)
+		common_renderer.clear_frame(render_frame)
 		game.populate_render_frame(render_frame, state^, previous_state^, alpha)
 		
 		gl_renderer.render(renderer, render_frame^, window_state.size)
@@ -160,6 +176,7 @@ main :: proc() {
 	free(previous_state)
 	free(input)
 	free(render_frame)
+	sdl2_platform.delete(&platform)
 
 	when ODIN_DEBUG {
 		if allocations_length := len(tracking_allocator.allocation_map); allocations_length > 0 {

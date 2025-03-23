@@ -9,10 +9,10 @@ import "core:fmt"
 import "common:types"
 import "common:pool"
 import "common:intersection"
+import "common:renderer"
 
 import "jetpack_joyride:assets"
 import "jetpack_joyride:properties"
-import "jetpack_joyride:renderer"
 
 update :: proc(state: ^State, input: ^Input, delta: f32) {
 	state.time += delta

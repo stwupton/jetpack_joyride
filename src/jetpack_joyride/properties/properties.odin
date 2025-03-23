@@ -6,7 +6,7 @@ simulations_per_second : f32 : 60
 sim_time_s : f32 : 1.0 / simulations_per_second
 sim_time_ms : f32 : sim_time_s * 1000
 
-view_size :: types.Size(int) {
+view_size :: types.Size(i32) {
 	width = 1920,
 	height = 1080
 }

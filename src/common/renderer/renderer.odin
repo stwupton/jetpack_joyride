@@ -3,11 +3,11 @@ package renderer
 import "core:math/linalg"
 import "core:container/small_array"
 
-import "jetpack_joyride:assets"
+Texture_ID :: u32
 
 Image_Render_Item :: struct {
 	transform: linalg.Matrix4f32,
-	texture: assets.Texture_ID,
+	texture: Texture_ID,
 }
 
 Shape_Type :: enum u8 {
