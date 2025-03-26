@@ -14,7 +14,7 @@ import "common:renderer"
 import "jetpack_joyride:assets"
 import "jetpack_joyride:properties"
 
-update :: proc(state: ^State, input: ^Input, delta: f32) {
+update :: proc(state: ^State, previous: ^State, input: ^Input, delta: f32) {
 	state.time += delta
 
 	update_back_panels(&state.back_panels, state.camera, delta)
@@ -37,6 +37,8 @@ update :: proc(state: ^State, input: ^Input, delta: f32) {
 	update_obstacles(&state.obstacles, &state.obstacle_spawn_x, state.camera, state.time)
 	update_bullets(&state.bullets, &state.ground_enemies, state.time, delta)
 	update_camera(&state.camera, state.player)
+
+	check_player_obstacle_collision(state, previous)
 
 	input.was_primary_button_down = input.is_primary_button_down
 }
@@ -132,6 +134,38 @@ populate_render_frame :: proc(
 	}
 
 	assert(!shapes_overflowed && !sprites_overflowed)
+}
+
+@private
+check_player_obstacle_collision :: proc(state: ^State, previous: ^State) {
+	overlapping := false
+	player := state.player
+
+	obstacle_iterator := pool.make_pool_iterator(&state.obstacles)
+	for obstacle in pool.iterate_pool(&obstacle_iterator) {
+		overlapping = intersection.rect_rect(
+			player.position, 
+			player.size, 
+			player.rotation, 
+			obstacle.position, 
+			obstacle.size, 
+			obstacle.rotation
+		)
+
+		if overlapping {
+			break
+		}
+	}
+
+	if overlapping do reset(state, previous)
+}
+
+@private 
+reset :: proc(state: ^State, previous: ^State) {
+	state^ = {}
+	previous^ = {}
+
+	init(state)
 }
 
 @private 

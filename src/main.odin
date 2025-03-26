@@ -155,7 +155,7 @@ main :: proc() {
 			}
 			
 			handle_events(game_event_handler, event_buffer, &window_state, input)
-			game.update(state, input, properties.sim_time_s)
+			game.update(state, previous_state, input, properties.sim_time_s)
 
 			free_all(context.temp_allocator)
 		}
